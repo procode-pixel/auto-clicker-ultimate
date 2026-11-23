@@ -1,0 +1,25 @@
+[project]
+name = "auto-clicker-ultimate"
+version = "1.0.0"
+description = "Premium Windows desktop auto clicker with macros, recognition, and safety limits."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Auto Clicker Ultimate" }]
+dependencies = [
+  "PySide6>=6.6",
+  "pynput>=1.7.6",
+  "numpy>=1.26",
+  "opencv-python-headless>=4.8",
+  "mss>=9.0",
+  "Pillow>=10.0",
+]
+
+[project.scripts]
+autoclicker = "autoclicker.app:run"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
