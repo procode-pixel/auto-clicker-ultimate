@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -14,6 +16,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -158,6 +161,47 @@ class HotkeysPage(QWidget):
             self.notify("Shortcuts saved. They also work while the window is minimized when the system allows a global hook.")
 
 
+class SessionChart(QWidget):
+    """Bar chart of recent session click counts. Empty until a real session ends."""
+
+    def __init__(self):
+        super().__init__()
+        self._values: list[int] = []
+        self.setMinimumHeight(140)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    def set_values(self, values: list[int]) -> None:
+        self._values = [max(0, int(v)) for v in values][-24:]
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = self.rect().adjusted(8, 8, -8, -22)
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 0))
+        if not self._values or max(self._values) == 0:
+            painter.setPen(QColor(160, 168, 180))
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No sessions to chart yet")
+            painter.end()
+            return
+        peak = max(self._values)
+        gap = 4
+        count = len(self._values)
+        width = max(4, (rect.width() - gap * (count - 1)) // count)
+        accent = QColor(88, 166, 255)
+        painter.setPen(Qt.PenStyle.NoPen)
+        for index, value in enumerate(self._values):
+            height = int(rect.height() * (value / peak))
+            x = rect.left() + index * (width + gap)
+            bar = rect.adjusted(0, rect.height() - height, 0, 0)
+            bar.setLeft(x)
+            bar.setWidth(width)
+            painter.fillRect(bar, accent)
+        painter.setPen(QPen(QColor(140, 148, 160)))
+        painter.drawText(8, self.height() - 6, f"Last {count} sessions  ·  peak {peak} clicks")
+        painter.end()
+
+
 class AnalyticsPage(QWidget):
     def __init__(self, controller, tr, notify):
         super().__init__()
@@ -169,6 +213,8 @@ class AnalyticsPage(QWidget):
         self.summary.setObjectName("StatValue")
         self.summary.setStyleSheet("font-size: 16px;")
         root.addWidget(self.summary)
+        self.chart = SessionChart()
+        root.addWidget(self.chart)
         self.history = QListWidget()
         root.addWidget(self.history)
         row = QHBoxLayout()
@@ -193,6 +239,7 @@ class AnalyticsPage(QWidget):
         )
         self.history.clear()
         sessions = self.controller.db.sessions(50)
+        self.chart.set_values([int(row["clicks"]) for row in reversed(sessions)])
         if not sessions:
             self.history.addItem("No sessions yet. Statistics appear after a real run.")
             return
@@ -309,14 +356,3 @@ class SettingsPage(QWidget):
         save.setObjectName("Primary")
         save.clicked.connect(self._save)
         root.addRow(save)
-
-    def _save(self) -> None:
-        db = self.controller.db
-        db.set_setting("language", self.language.currentData())
-        db.set_setting("theme", self.theme.currentText())
-        db.set_setting("accent", self.accent.currentText())
-        db.set_setting("start_minimized", "1" if self.minimized.isChecked() else "0")
-        db.set_setting("close_to_tray", "1" if self.tray.isChecked() else "0")
-        db.set_setting("notifications", "1" if self.notifications.isChecked() else "0")
-        self.apply_appearance()
-        self.notify("Settings applied")
